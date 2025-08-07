@@ -1,0 +1,3 @@
+log_file: 'logs/log.log'
+debug: false
+db_url: 'postgresql+asyncpg://user:pass@host:5432/vrc_localization_checker'
