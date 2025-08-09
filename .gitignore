@@ -211,3 +211,4 @@ config.yml
 logs/
 log.txt
 result.txt
+.keys/

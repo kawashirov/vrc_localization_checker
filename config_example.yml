@@ -13,3 +13,10 @@ openai_base_url: 'http://localhost:11434/v1/'
 openai_model: 'gemma3:27b'
 min_suggestions: 1
 
+# export to google settings
+# https://console.cloud.google.com/iam-admin/serviceaccounts
+# https://console.developers.google.com/apis/api/sheets.googleapis.com/overview
+google_keyfile: '.keys\\service-acc-keyfile.json'
+google_spreadsheet_id: 'longnumbersandletters'
+google_sheet_i: 0
+google_export_model_id : 'gemma3:27b'
