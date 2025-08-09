@@ -1,3 +1,15 @@
+# general settings
 log_file: 'logs/log.log'
 debug: false
 db_url: 'postgresql+asyncpg://user:pass@host:5432/vrc_localization_checker'
+localization_folder: null # if null, then guess VRC default LocalLow folder
+
+# suggestions settings
+source_lang: 'en'
+target_lang: 'ru'
+extra_langs: 'all'  # unused yet
+openai_api_key: 'amogus'
+openai_base_url: 'http://localhost:11434/v1/'
+openai_model: 'gemma3:27b'
+min_suggestions: 1
+

@@ -33,7 +33,7 @@ class AnalyzeTranslations(base.Base):
 		models = [model.id async for model in self.ai_client.models.list()]
 		self.info(f"Got {len(models)} models from {base_url} in {self.span(begin)}.")
 		if self.debug:
-			self.info(pprint.pformat(models))
+			self.info(pprint.pformat(models, width=240))
 
 	@functools.lru_cache
 	def _make_string_picker_stmt(self, limit: int):
@@ -216,6 +216,7 @@ class AnalyzeTranslations(base.Base):
 				"которых не было в \"target_код\", в твоём ответе НЕ ДОЛЖНО БЫТЬ.",
 				"",
 				"Осознай требования к твоим ответам выше, покорно и внимательно исполняй их и \"не тупи\".",
+				"Думай много, перепроверяй свои выводы. Reasoning: high и всё такое.",
 			])},
 			# Few-shot Learning
 			# https://api-docs.deepseek.com/guides/kv_cache#example-3-using-few-shot-learning
@@ -261,7 +262,7 @@ class AnalyzeTranslations(base.Base):
 		log_token = f"translation №{source_id} -> №{target_id} on string (\"{string_file}\", \"{string_key}\")"
 		return log_token
 
-	def _pick_extra_stmt(self, string_pair: 'dict[str, ...]'):
+	def _pick_extra_stmt(self, string_pair: 'dict[str, ...]') -> 'sa.Select':
 		# todo caching?
 		target_lang = self.config['target_lang']
 		source_lang = self.config['source_lang']
@@ -314,7 +315,7 @@ class AnalyzeTranslations(base.Base):
 			source=string_pair['source_string_body'],
 			target_lang=target_lang,
 			target=string_pair['target_string_body'],
-			# extra=extra_clear,
+			extra=extra_clear,
 		), ensure_ascii=False)
 		self.info(f"Asking {model_id!r}:\n{message_content!r}")
 		messages = [
@@ -341,34 +342,37 @@ class AnalyzeTranslations(base.Base):
 		suggestion_json = dict()
 		choice = response.choices[0]  # can only use n=1 for now to properly count tokens
 
+		def suggestion_pf():
+			pprint.pformat(suggestion_json, width=240)
+
 		try:
 			suggestion_json = json.loads(choice.message.content)
 		except Exception as exc:
 			self.warning_exc(f"Failed to decode model {model_id!r} response on {log_token}: {choice=}", exc, exc_info=False)
 
 		if not isinstance(suggestion_json, dict):
-			self.warning(f"Model {model_id!r} responded with with non-dict object on {log_token}: {pprint.pformat(suggestion_json)}")
+			self.warning(f"Model {model_id!r} responded with with non-dict object on {log_token}: {suggestion_pf()}")
 			suggestion_json = dict()
 
 		has_suggestion = suggestion_json.get('has_suggestion')
 		if not isinstance(has_suggestion, bool):
-			self.warning(f"Model {model_id!r} didn't provided valid 'has_suggestion' on {log_token}: {pprint.pformat(suggestion_json)}")
+			self.warning(f"Model {model_id!r} didn't provided valid 'has_suggestion' on {log_token}: {suggestion_pf()}")
 			has_suggestion = False
 
 		suggestion = suggestion_json.get('suggestion')
 		if suggestion is not None and (not isinstance(suggestion, str) or len(suggestion) < 1):
-			self.warning(f"Model {model_id!r} didn't provided valid 'suggestion' on {log_token}: {pprint.pformat(suggestion_json)}")
+			self.warning(f"Model {model_id!r} didn't provided valid 'suggestion' on {log_token}: {suggestion_pf()}")
 			suggestion = None
 			has_suggestion = False
 
 		if string_pair['target_string_body'] == suggestion:
-			self.warning(f"Model {model_id!r} suggested exactly the same 'target' on {log_token}: {pprint.pformat(suggestion_json)}")
+			self.warning(f"Model {model_id!r} suggested exactly the same 'target' on {log_token}: {suggestion_pf()}")
 			suggestion = None
 			has_suggestion = False
 
 		comment = suggestion_json.get('comment')
 		if comment is not None and (not isinstance(comment, str) or len(comment) < 1):
-			self.warning(f"Model {model_id!r} didn't provided valid 'comment' on {log_token}: {pprint.pformat(suggestion_json)}")
+			self.warning(f"Model {model_id!r} didn't provided valid 'comment' on {log_token}: {suggestion_pf()}")
 			comment = None
 
 		self.info(f"Storing suggestion ({has_suggestion!r}) for {log_token} to DB...")
@@ -394,8 +398,8 @@ class AnalyzeTranslations(base.Base):
 			await conn.execute(statement, row)
 			await conn.commit()
 		self.info(f"Stored suggestion ({has_suggestion!r}) for {log_token} to DB in {self.span(begin)}.")
-
-		self.info(pprint.pformat(suggestion))
+		if self.debug:
+			self.info(pprint.pformat(suggestion, width=240))
 
 	async def sub_main(self):
 		await self._init_openai()
@@ -404,7 +408,8 @@ class AnalyzeTranslations(base.Base):
 			if len(string_pairs) < 1:
 				self.info(f"No more strings with lack of suggestions found, done?")
 				break
-			# self.info(pprint.pformat(string_pairs))
+			if self.debug:
+				self.info(pprint.pformat(string_pairs, width=240))
 			for string_pair in string_pairs:
 				if self.shutdown_requested.is_set():
 					break
